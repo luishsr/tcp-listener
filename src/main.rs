@@ -1,39 +1,48 @@
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{UdpSocket};
 use std::thread;
 
-fn handle_client(mut stream: TcpStream) {
-    let mut buffer = [0; 1024];
-    while let Ok(bytes_read) = stream.read(&mut buffer) {
-        if bytes_read == 0 {
-            // Connection closed
-            break;
-        }
-        if let Err(err) = stream.write(&buffer[0..bytes_read]) {
-            eprintln!("Error writing to stream: {}", err);
-            break;
-        }
+fn main() -> std::io::Result<()> {
+    // Create a UDP socket to send and receive discovery messages
+    let socket = UdpSocket::bind("0.0.0.0:12345")?;
+    socket.set_broadcast(true)?;
+
+    println!("UDP Discovery Server is listening on 0.0.0.0:12345");
+
+    // Spawn a thread to handle incoming discovery messages
+    thread::spawn(move || {
+        handle_discovery_messages(socket);
+    });
+
+    // Main thread for sending discovery messages
+    send_discovery_messages();
+
+    Ok(())
+}
+
+fn send_discovery_messages() {
+    // Replace with your own custom discovery message
+    let discovery_message = "Hello from the discovery server!";
+    let broadcast_addr = "255.255.255.255:12345";
+
+    // Send the discovery message to the broadcast address
+    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+        socket.set_broadcast(true).ok();
+        socket.send_to(discovery_message.as_bytes(), broadcast_addr).ok();
     }
 }
 
-fn main() -> std::io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:8085")?;
+fn handle_discovery_messages(socket: UdpSocket) {
+    let mut buffer = [0u8; 1024];
 
-    println!("Server listening on 127.0.0.1:8085");
-
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                // Spawn a new thread to handle each incoming connection
-                thread::spawn(move || {
-                    handle_client(stream);
-                });
-            }
-            Err(e) => {
-                eprintln!("Error accepting connection: {}", e);
-            }
+    loop {
+        match socket.recv_from(&mut buffer) {
+            Ok((size, src)) => {
+                let message = String::from_utf8_lossy(&buffer[0..size]);
+                println!("Received discovery message from {}: {}", src, message);
+            },
+            Err(_) => {
+                println!("Error receiving discovery message");
+            },
         }
     }
-
-    Ok(())
 }
